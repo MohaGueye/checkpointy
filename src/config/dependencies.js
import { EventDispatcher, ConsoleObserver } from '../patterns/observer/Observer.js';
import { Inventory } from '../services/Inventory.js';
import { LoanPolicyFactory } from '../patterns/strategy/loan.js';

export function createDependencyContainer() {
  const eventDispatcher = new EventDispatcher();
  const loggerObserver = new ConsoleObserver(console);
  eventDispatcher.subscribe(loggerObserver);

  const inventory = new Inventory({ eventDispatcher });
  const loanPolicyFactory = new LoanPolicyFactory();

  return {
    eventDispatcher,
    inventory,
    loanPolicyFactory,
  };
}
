@@ -1,0 +1,79 @@
+import { Loan } from '../domain/Loan.js';
+
+export class LibraryService {
+  constructor({ inventory, eventDispatcher, loanPolicyFactory, members = new Map() } = {}) {
+    this.inventory = inventory;
+    this.eventDispatcher = eventDispatcher;
+    this.loanPolicyFactory = loanPolicyFactory;
+    this.members = members;
+    this.activeLoans = new Map();
+  }
+
+  registerMember(member) {
+    if (this.members.has(member.id)) {
+      throw new Error(`Member with ID ${member.id} is already registered.`);
+    }
+
+    this.members.set(member.id, member);
+    this.eventDispatcher.emit('MEMBER_REGISTERED', { member });
+    return member;
+  }
+
+  addBook(book) {
+    this.inventory.addBook(book);
+    return book;
+  }
+
+  getMember(memberId) {
+    return this.members.get(memberId) ?? null;
+  }
+
+  borrowBook({ member, bookId }) {
+    const memberRecord = member ?? this.getMember(memberId);
+    if (!memberRecord) {
+      throw new Error('Cannot borrow a book without a registered member.');
+    }
+
+    const activeBorrows = [...this.activeLoans.values()].filter(
+      (loan) => loan.memberId === memberRecord.id && loan.status === 'ACTIVE',
+    );
+
+    const policy = this.loanPolicyFactory.forMember(memberRecord);
+    const maxBooks = policy.getMaxBooks(memberRecord);
+
+    if (activeBorrows.length >= maxBooks) {
+      throw new Error(
+        `${memberRecord.name} has reached their borrowing limit of ${maxBooks} books.`,
+      );
+    }
+
+    this.inventory.checkout(bookId);
+    const loan = new Loan({
+      bookId,
+      memberId: memberRecord.id,
+      dueDate: policy.getDueDate(new Date()),
+    });
+
+    this.activeLoans.set(loan.id, loan);
+    this.eventDispatcher.emit('LOAN_CREATED', { loan, member: memberRecord });
+    return loan;
+  }
+
+  returnBook({ bookId, memberId }) {
+    const loan = [...this.activeLoans.values()].find(
+      (activeLoan) =>
+        activeLoan.memberId === memberId &&
+        activeLoan.bookId === bookId &&
+        activeLoan.status === 'ACTIVE',
+    );
+
+    if (!loan) {
+      throw new Error('No active loan found for that book and member.');
+    }
+
+    this.inventory.checkin(bookId);
+    loan.status = 'RETURNED';
+    this.eventDispatcher.emit('LOAN_RETURNED', { loan });
+    return loan;
+  }
+}

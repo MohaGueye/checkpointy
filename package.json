@@ -1,0 +1,19 @@
+{
+  "name": "checkpointy-library-system",
+  "version": "1.0.0",
+  "description": "Modular library management system built with ES modules and JavaScript design patterns.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "library",
+    "design-patterns",
+    "node",
+    "es-modules",
+    "dependency-injection"
+  ],
+  "license": "MIT"
+}
